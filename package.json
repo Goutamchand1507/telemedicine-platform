@@ -1,0 +1,27 @@
+{
+  "name": "telemedicine-platform",
+  "version": "1.0.0",
+  "description": "Comprehensive telemedicine platform for rural areas with HIPAA compliance",
+  "main": "server/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd server && npm run dev",
+    "client": "cd client && npm start",
+    "mobile": "cd mobile && npm start",
+    "build": "cd client && npm run build",
+    "install-all": "npm install && cd server && npm install && cd ../client && npm install && cd ../mobile && npm install"
+  },
+  "keywords": [
+    "telemedicine",
+    "healthcare",
+    "video-consultation",
+    "HIPAA",
+    "EHR",
+    "rural-healthcare"
+  ],
+  "author": "Telemedicine Platform Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
