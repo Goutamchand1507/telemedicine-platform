@@ -1,6 +1,12 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { io, Socket } from 'socket.io-client';
-import { useAuth } from './AuthContext';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from "react";
+import { io, Socket } from "socket.io-client";
+import { useAuth } from "./AuthContext";
 
 interface SocketContextType {
   socket: Socket | null;
@@ -37,16 +43,18 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
     const token = localStorage.getItem("token");
 
-    // 🔥 PRODUCTION SOCKET URL (Render backend)
+    // Backend Render server
     const socketUrl =
       process.env.REACT_APP_SOCKET_URL ||
-      "https://telemedicine-platform-h2xc.onrender.com";  // your backend
+      "https://telemedicine-platform-h2xc.onrender.com";
 
     console.log("🔌 Connecting to Socket.IO:", socketUrl);
 
+    // 🔥 FIX: Render does NOT support WebSocket upgrade → force POLLING
     const newSocket = io(socketUrl, {
-      transports: ["websocket"], // ⚠ Force pure websocket for Vercel
       auth: { token },
+      transports: ["polling"], // 👈 FIX #1
+      upgrade: false, // 👈 FIX #2 — prevent websocket upgrade
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1500,
@@ -77,14 +85,19 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     };
   }, [user]);
 
+  // Emit actions
   const joinCall = (callId: string) => socket?.emit("join-call", { callId });
   const leaveCall = (callId: string) => socket?.emit("leave-call", { callId });
   const sendSignal = (callId: string, signal: any) =>
     socket?.emit("call-signal", { callId, signal });
+
+  // Listen for events
   const onSignal = (callback: (data: any) => void) =>
     socket?.on("call-signal", callback);
+
   const onUserJoined = (callback: (data: any) => void) =>
     socket?.on("user-joined", callback);
+
   const onUserLeft = (callback: (data: any) => void) =>
     socket?.on("user-left", callback);
 
