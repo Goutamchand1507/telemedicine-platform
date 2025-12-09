@@ -33,7 +33,9 @@ interface SocketProviderProps {
   children: ReactNode;
 }
 
-export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
+export const SocketProvider: React.FC<SocketProviderProps> = ({
+  children,
+}) => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const { user } = useAuth();
@@ -43,21 +45,23 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
     const token = localStorage.getItem("token");
 
-    // Backend Render server
+    // 🔥 Render backend for Socket.IO
     const socketUrl =
       process.env.REACT_APP_SOCKET_URL ||
       "https://telemedicine-platform-h2xc.onrender.com";
 
     console.log("🔌 Connecting to Socket.IO:", socketUrl);
 
-    // 🔥 FIX: Render does NOT support WebSocket upgrade → force POLLING
     const newSocket = io(socketUrl, {
       auth: { token },
-      transports: ["polling"], // 👈 FIX #1
-      upgrade: false, // 👈 FIX #2 — prevent websocket upgrade
+
+      // 👇 IMPORTANT: Render free tier does NOT support WebSocket-only
+      transports: ["polling", "websocket"],
+
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1500,
+      timeout: 20000,
     });
 
     newSocket.on("connect", () => {
@@ -65,13 +69,13 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       setIsConnected(true);
     });
 
-    newSocket.on("connect_error", (err) => {
-      console.error("❌ Socket connection error:", err.message);
+    newSocket.on("disconnect", () => {
+      console.log("❌ Socket disconnected");
       setIsConnected(false);
     });
 
-    newSocket.on("disconnect", () => {
-      console.log("❌ Socket disconnected");
+    newSocket.on("connect_error", (err) => {
+      console.error("❌ Socket connection error:", err.message);
       setIsConnected(false);
     });
 
@@ -80,18 +84,17 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     return () => {
       console.log("🔌 Closing socket");
       newSocket.close();
-      setSocket(null);
       setIsConnected(false);
+      setSocket(null);
     };
   }, [user]);
 
-  // Emit actions
+  // Video call events
   const joinCall = (callId: string) => socket?.emit("join-call", { callId });
   const leaveCall = (callId: string) => socket?.emit("leave-call", { callId });
   const sendSignal = (callId: string, signal: any) =>
     socket?.emit("call-signal", { callId, signal });
 
-  // Listen for events
   const onSignal = (callback: (data: any) => void) =>
     socket?.on("call-signal", callback);
 
