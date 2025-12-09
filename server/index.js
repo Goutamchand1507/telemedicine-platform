@@ -1,5 +1,12 @@
-// server/index.js
-console.log("Loaded JWT_SECRET:", process.env.JWT_SECRET);
+// -----------------------------
+// Environment Debug
+// -----------------------------
+console.log("🔐 Loaded JWT_SECRET:", process.env.JWT_SECRET);
+console.log("🔌 DATABASE_URL exists:", !!process.env.DATABASE_URL);
+console.log("NODE_ENV:", process.env.NODE_ENV);
+
+// DO NOT USE dotenv ON RAILWAY
+// require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
@@ -9,7 +16,6 @@ const morgan = require("morgan");
 const rateLimit = require("express-rate-limit");
 const { createServer } = require("http");
 const { Server } = require("socket.io");
-require("dotenv").config();
 
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/users");
@@ -24,6 +30,8 @@ const { errorHandler } = require("./middleware/errorHandler");
 const { authenticateToken } = require("./middleware/auth");
 const { initializeDatabase } = require("./config/database");
 
+const path = require("path");
+
 const app = express();
 const server = createServer(app);
 
@@ -33,18 +41,19 @@ const server = createServer(app);
 const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:3001",
-  "https://telemedicine-platform-sigma.vercel.app",
+  "https://telemedicine-platform-sigma.vercel.app"
 ];
 
 function originAllowed(origin) {
-  if (!origin) return true;
+  if (!origin) return true; // mobile apps / tools
   if (allowedOrigins.includes(origin)) return true;
   if (origin.endsWith(".vercel.app")) return true;
+  if (origin.includes(".railway.app")) return true;
   if (origin.includes(".onrender.com")) return true;
   return false;
 }
 
-console.log("Allowed origins:", allowedOrigins);
+console.log("🌍 Allowed origins:", allowedOrigins);
 
 // -----------------------------
 // CORS
@@ -62,39 +71,37 @@ app.use(
   })
 );
 
-// Preflight
 app.options("*", cors());
 
 // -----------------------------
-// Helmet (important for WebRTC + Socket)
+// Helmet for WebRTC
 // -----------------------------
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
-    contentSecurityPolicy: false, // MUST BE DISABLED
+    contentSecurityPolicy: false,
   })
 );
 
 // -----------------------------
-// Socket.IO — POLLING-ONLY (Render fix)
+// Socket.IO — POLLING ONLY (Railway safe mode)
 // -----------------------------
 const io = new Server(server, {
   cors: {
     origin: (origin, callback) => {
       if (originAllowed(origin)) return callback(null, true);
       console.log("❌ SOCKET BLOCKED:", origin);
-      callback("Not allowed by CORS");
+      return callback("Not allowed by CORS");
     },
     credentials: true,
   },
-
-  transports: ["polling"], // 🔥 IMPORTANT — Render does NOT support websocket upgrade
-  upgrade: false,          // 🔥 Disable WS upgrade
+  transports: ["polling"], // Railway does NOT support websocket upgrade
+  upgrade: false,
   pingTimeout: 30000,
 });
 
 // -----------------------------
-// Express basics
+// Express Middlewares
 // -----------------------------
 app.set("trust proxy", 1);
 
@@ -110,8 +117,6 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(morgan("combined"));
 app.use(compression());
 
-// Static uploads
-const path = require("path");
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // -----------------------------
@@ -150,31 +155,26 @@ io.use((socket, next) => {
 
     socket.userId = decoded.userId;
     socket.userRole = decoded.role;
-
-    return next();
+    next();
   } catch (err) {
     console.log("❌ Socket Auth Failed:", err.message);
-    return next(new Error("Invalid token"));
+    next(new Error("Invalid token"));
   }
 });
 
 // -----------------------------
-// Socket.IO WebRTC Signaling
+// WebRTC Signaling
 // -----------------------------
 io.on("connection", (socket) => {
-  console.log("⚡ Connected:", socket.id, "User:", socket.userId);
+  console.log("⚡ Socket Connected:", socket.id, "| User:", socket.userId);
 
   socket.on("join-call", ({ callId }) => {
     socket.join(callId);
-    console.log(`📞 User ${socket.userId} joined ${callId}`);
-
     socket.to(callId).emit("user-joined", { userId: socket.userId });
   });
 
   socket.on("leave-call", ({ callId }) => {
     socket.leave(callId);
-    console.log(`👋 User ${socket.userId} left ${callId}`);
-
     socket.to(callId).emit("user-left", { userId: socket.userId });
   });
 
@@ -186,12 +186,12 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    console.log("❌ Disconnected:", socket.id);
+    console.log("❌ Socket disconnected:", socket.id);
   });
 });
 
 // -----------------------------
-// Error Handling
+// Error Handler
 // -----------------------------
 app.use(errorHandler);
 
@@ -206,8 +206,10 @@ const PORT = process.env.PORT || 5000;
 
 async function startServer() {
   try {
+    console.log("🚀 Initializing Database…");
     await initializeDatabase();
-    console.log("📦 Database connected");
+
+    console.log("📦 Database connected successfully");
 
     server.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
