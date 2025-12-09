@@ -2,9 +2,10 @@ import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { toast } from 'react-toastify';
 
 // ✅ Correct API Base URL (MUST include /api)
-const API_BASE_URL =
-  process.env.REACT_APP_API_URL ||
-  "https://telemedicine-platform-h2xc.onrender.com/api";
+const API_BASE_URL = "https://telemedicine-platform-h2xc.onrender.com";
+
+  // process.env.REACT_APP_API_URL ||
+  // "https://telemedicine-platform-h2xc.onrender.com/api";
 
 class ApiService {
   private api: AxiosInstance;
@@ -185,3 +186,4 @@ class ApiService {
 
 const apiService = new ApiService();
 export default apiService;
+
