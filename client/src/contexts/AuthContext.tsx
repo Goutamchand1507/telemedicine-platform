@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
 import { User } from "../types";
 import apiService from "../services/api";
 
@@ -29,7 +35,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Load user + token on refresh
+  // Load stored user/token on refresh
   useEffect(() => {
     const initAuth = async () => {
       const token = localStorage.getItem("token");
@@ -38,8 +44,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (token && savedUser) {
         try {
           const response = await apiService.getCurrentUser();
-          setUser(response.data.user);
+
+          // response.data = { success, data: { user } }
+          const currentUser = response.data?.data?.user;
+
+          if (currentUser) {
+            setUser(currentUser);
+          } else {
+            throw new Error("Invalid user data");
+          }
         } catch (error) {
+          console.error("Auto-login failed:", error);
           localStorage.removeItem("token");
           localStorage.removeItem("user");
           setUser(null);
@@ -52,39 +67,57 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     initAuth();
   }, []);
 
-  // ✅ FIXED LOGIN → returns full data
+  // ============================================
+  // LOGIN
+  // ============================================
   const login = async (email: string, password: string) => {
-    const response = await apiService.login({ email, password });
+    try {
+      const response = await apiService.login({ email, password });
 
-    const { user: userData, token } = response.data;
+      // Backend returns: { success, data: { user, token } }
+      const userData = response.data?.data?.user;
+      const token = response.data?.data?.token;
 
-    if (token) {
+      if (!token || !userData) {
+        throw new Error("Invalid login response");
+      }
+
       localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(userData));
+
+      setUser(userData);
+
+      return { token, user: userData };
+    } catch (error: any) {
+      console.error("Login error:", error);
+      throw error;
     }
-    localStorage.setItem("user", JSON.stringify(userData));
-
-    setUser(userData);
-
-    // ⭐ IMPORTANT: return data so Login.tsx can access token
-    return response.data;
   };
 
-  // REGISTER also returns response
+  // ============================================
+  // REGISTER
+  // ============================================
   const register = async (userData: any) => {
     const response = await apiService.register(userData);
 
-    const { user: newUser, token } = response.data;
+    const newUser = response.data?.data?.user;
+    const token = response.data?.data?.token;
 
     if (token) {
       localStorage.setItem("token", token);
     }
-    localStorage.setItem("user", JSON.stringify(newUser));
 
-    setUser(newUser);
+    if (newUser) {
+      localStorage.setItem("user", JSON.stringify(newUser));
+      setUser(newUser);
+    }
 
     return response.data;
   };
 
+  // ============================================
+  // LOGOUT
+  // ============================================
   const logout = async () => {
     try {
       await apiService.logout();
@@ -97,6 +130,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // ============================================
+  // UPDATE USER (Profile)
+  // ============================================
   const updateUser = (userData: Partial<User>) => {
     if (user) {
       const updatedUser = { ...user, ...userData };
@@ -105,6 +141,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // CONTEXT VALUE
   const value: AuthContextType = {
     user,
     loading,

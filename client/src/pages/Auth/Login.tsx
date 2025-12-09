@@ -45,24 +45,27 @@ const Login: React.FC = () => {
     setError('');
 
     try {
-      // -------------------------------
-      // 🔥 Call login() from AuthContext
-      // -------------------------------
-      const result = await login(data.email, data.password);
+      const response: any = await login(data.email, data.password);
 
-      // Backend returns { user, token }
-      const token = result?.token;
-
-      if (token) {
-        // Save token properly
-        localStorage.setItem('token', token);
+      // Ensure token exists
+      if (!response?.token) {
+        setError('Invalid server response.');
+        setLoading(false);
+        return;
       }
+
+      localStorage.setItem('token', response.token);
 
       toast.success('Login successful!');
       navigate('/dashboard');
 
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed');
+      const message =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Login failed, please try again';
+
+      setError(message);
     } finally {
       setLoading(false);
     }
